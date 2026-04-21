@@ -1,0 +1,32 @@
+{
+  "description": "Payload de ejemplo con los filtros disponibles para el Servicio 1. Todos los campos son opcionales. El cliente puede enviar uno, varios o ninguno.",
+  "examples": [
+    {
+      "name": "Sin filtros — lista todos los inmuebles visibles",
+      "filters": {}
+    },
+    {
+      "name": "Filtrar por ciudad y estado",
+      "filters": {
+        "city": "Bogotá",
+        "status": "en_venta"
+      }
+    },
+    {
+      "name": "Filtrar por año de construcción",
+      "filters": {
+        "year": 2020
+      }
+    },
+    {
+      "name": "Filtros combinados con paginación",
+      "filters": {
+        "year": 2018,
+        "city": "Medellín",
+        "status": "pre_venta",
+        "limit": 20,
+        "offset": 0
+      }
+    }
+  ]
+}

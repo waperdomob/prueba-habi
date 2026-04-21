@@ -48,3 +48,236 @@ MySQL
 Esta separación permite testear la lógica de negocio sin tocar la base de datos
 (mediante mocks del repositorio) y mantiene cada capa con una única responsabilidad.
 
+### Estructura del repositorio
+
+```
+habi-prueba/
+├── README.md
+├── requirements.txt
+├── .env.example                  # plantilla de variables de entorno
+├── .gitignore
+├── config/
+│   └── settings.py               # carga configuración desde variables de entorno
+├── services/
+│   └── property_service/         # Servicio 1
+│       ├── server.py             # BaseHTTPRequestHandler + main
+│       ├── router.py             # mapeo de rutas
+│       ├── controllers.py        # parseo de request y serialización
+│       ├── use_cases.py          # reglas de negocio
+│       ├── repository.py         # queries SQL
+│       ├── models.py             # dataclasses
+│       └── exceptions.py         # excepciones de dominio
+├── database/
+│   ├── connection.py             # pool de conexiones
+│   └── migrations/
+│       ├── service2_likes.sql    # DDL del Servicio 2
+│       └── extra3_model.sql      # DDL del modelo mejorado (Extra 3)
+├── docs/
+│   ├── er_service2.png           # ER del Servicio 2
+│   ├── er_extra3.png             # ER del modelo mejorado
+│   └── sample_filters.json       # JSON de ejemplo para el Servicio 1
+├── algorithm/
+│   ├── block_sort.py             # ejercicio 6 (resuelto sin IA)
+│   └── tests/
+├── frontend/                     # Extra 2
+│   ├── index.html
+│   ├── styles.css
+│   └── app.js
+└── tests/
+    ├── unit/
+    └── integration/
+```
+
+## Cómo ejecutar
+
+### 1. Requisitos previos
+
+- Python 3.11 o superior
+- Acceso a la base de datos MySQL de la prueba (credenciales enviadas por correo)
+
+### 2. Instalación
+
+```bash
+python -m venv venv
+source venv/bin/activate         # en Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 3. Configuración
+
+Copia `.env.example` a `.env` y completa con las credenciales recibidas por correo:
+
+```bash
+cp .env.example .env
+# editar .env con las credenciales reales
+```
+
+**Las credenciales nunca se suben al repositorio.** El archivo `.env` está en `.gitignore`.
+
+### 4. Ejecutar el Servicio 1
+
+```bash
+python -m services.property_service.server
+```
+
+El servicio queda disponible en `http://localhost:8000`.
+
+### 5. Abrir el frontend (Extra 2)
+
+Con el servicio corriendo, abre `frontend/index.html` en el navegador (o sírvelo desde
+cualquier servidor estático).
+
+## Cómo correr las pruebas
+
+```bash
+# Todos los tests
+python -m unittest discover -s tests -v
+
+# Solo tests unitarios
+python -m unittest discover -s tests/unit -v
+
+# Tests del algoritmo
+python -m unittest discover -s algorithm/tests -v
+```
+
+---
+
+## Servicio 1 — Consulta de inmuebles
+
+### Endpoint
+
+```
+GET /properties
+```
+
+### Filtros (query params, todos opcionales)
+
+| Parámetro   | Tipo   | Descripción                                       |
+|-------------|--------|---------------------------------------------------|
+| `year`      | int    | Año de construcción                               |
+| `city`      | string | Ciudad (coincidencia exacta, case-insensitive)    |
+| `status`    | string | `pre_venta`, `en_venta` o `vendido`               |
+| `limit`     | int    | Paginación — por defecto 50, máximo 200           |
+| `offset`    | int    | Paginación — por defecto 0                        |
+
+### Reglas de negocio
+
+- Solo se exponen inmuebles cuyo **último** registro en `status_history` sea
+  `pre_venta`, `en_venta` o `vendido`.
+- Inmuebles con otros estados (o sin historial) **nunca** son visibles.
+- Si se envía `status` como filtro, debe ser uno de los tres valores válidos.
+
+### Respuesta
+
+```json
+{
+  "count": 2,
+  "results": [
+    {
+      "address": "Calle 123 # 45-67",
+      "city": "Bogotá",
+      "status": "en_venta",
+      "price": 450000000,
+      "description": "Apartamento de 3 habitaciones..."
+    }
+  ]
+}
+```
+
+### Ejemplo de JSON de filtros
+
+Ver [`docs/sample_filters.json`](./docs/sample_filters.json). Representa el payload
+que enviaría un frontend al construir la query.
+
+---
+
+## Servicio 2 — Me gusta
+
+Este servicio es **conceptual**: se entrega diagrama ER, SQL de extensión y
+justificación de las decisiones de diseño. No hay código funcional.
+
+Ver [`database/migrations/service2_likes.sql`](./database/migrations/service2_likes.sql)
+y el diagrama en [`docs/er_service2.png`](./docs/er_service2.png).
+
+### Decisiones de diseño
+
+(Se completa durante el desarrollo — ver sección dedicada más abajo en este README.)
+
+---
+
+## Ejercicio algorítmico
+
+Ver [`algorithm/block_sort.py`](./algorithm/block_sort.py).
+
+**Este ejercicio se resolvió sin uso de herramientas de IA**, conforme al requisito
+de la prueba. El historial de commits del archivo refleja el proceso de desarrollo
+manual.
+
+---
+
+## Extras
+
+### Extra 2 — Frontend
+
+Interfaz mínima en HTML/CSS/JS vanilla que consume el Servicio 1. Incluye:
+
+- Formulario de filtros (año, ciudad, estado)
+- Tabla de resultados con los campos requeridos
+- Indicador de carga
+- Mensaje de estado vacío
+
+Ver [`frontend/`](./frontend/).
+
+### Extra 3 — Modelo de datos mejorado
+
+Propuesta de modelo alternativo que mejora el rendimiento de la consulta del
+Servicio 1. Ver diagrama en [`docs/er_extra3.png`](./docs/er_extra3.png) y
+justificación en la sección correspondiente más abajo.
+
+---
+
+## Dudas y decisiones
+
+> Sección que se irá completando durante el desarrollo conforme aparezcan
+> decisiones de criterio. Cada entrada incluye la duda, la resolución tomada y
+> la justificación.
+
+### D1 — ¿Qué hacer con inmuebles que no tienen ningún registro en `status_history`?
+
+**Resolución:** Se excluyen de los resultados.
+**Justificación:** La regla de negocio exige que el inmueble tenga un estado
+visible (`pre_venta`, `en_venta`, `vendido`). Sin historial no hay estado, por
+lo tanto no es visible para el usuario.
+
+### D2 — ¿Cómo determinar el "último" estado cuando hay empate en `update_date`?
+
+**Resolución:** Se desempata por el `id` de `status_history` en orden descendente.
+**Justificación:** El `id` autoincremental refleja el orden de inserción real y
+evita ambigüedad cuando dos actualizaciones compartieran timestamp.
+
+### D3 — ¿Qué hacer si llega un filtro `status` con un valor no válido?
+
+**Resolución:** Responder `400 Bad Request` con un mensaje que liste los valores
+permitidos.
+**Justificación:** Fallar rápido es mejor que devolver lista vacía silenciosa,
+que el cliente podría confundir con "no hay resultados".
+
+### D4 — ¿Precios nulos o negativos?
+
+**Resolución:** Se loguean como inconsistencia y se devuelven como `null` en la
+respuesta (no se excluye el inmueble).
+**Justificación:** El precio puede estar pendiente de definir, pero el inmueble
+sigue siendo relevante para el usuario. Excluirlo ocultaría inmuebles válidos.
+
+### D5 — Paginación.
+
+**Resolución:** Implementada con `limit` (default 50, máx 200) y `offset`.
+**Justificación:** La tabla puede crecer indefinidamente; sin paginación el
+endpoint es inviable en producción. No la pidieron explícitamente, pero omitirla
+sería un olvido grave.
+
+---
+
+## Licencia
+
+Este código fue desarrollado como prueba técnica para Habi.
