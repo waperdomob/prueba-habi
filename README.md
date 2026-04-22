@@ -73,8 +73,8 @@ habi-prueba/
 │       ├── service2_likes.sql    # DDL del Servicio 2
 │       └── extra3_model.sql      # DDL del modelo mejorado (Extra 3)
 ├── docs/
-│   ├── er_service2.png           # ER del Servicio 2
-│   ├── er_extra3.png             # ER del modelo mejorado
+│   ├── er_service2.md            # ER del Servicio 2 (Mermaid)
+│   ├── er_extra3.md              # ER del modelo mejorado (Mermaid)
 │   └── sample_filters.json       # JSON de ejemplo para el Servicio 1
 ├── algorithm/
 │   ├── block_sort.py             # ejercicio 6 (resuelto sin IA)
@@ -196,12 +196,93 @@ que enviaría un frontend al construir la query.
 Este servicio es **conceptual**: se entrega diagrama ER, SQL de extensión y
 justificación de las decisiones de diseño. No hay código funcional.
 
-Ver [`database/migrations/service2_likes.sql`](./database/migrations/service2_likes.sql)
-y el diagrama en [`docs/er_service2.png`](./docs/er_service2.png).
+- **DDL:** [`database/migrations/service2_likes.sql`](./database/migrations/service2_likes.sql)
+- **Diagrama ER (Mermaid):** [`docs/er_service2.md`](./docs/er_service2.md)
 
-### Decisiones de diseño
+### Modelo propuesto
 
-(Se completa durante el desarrollo — ver sección dedicada más abajo en este README.)
+Se añade una sola tabla nueva, `property_like`, con la estructura:
+
+| Columna       | Tipo     | Notas                                           |
+|---------------|----------|-------------------------------------------------|
+| `id`          | INT PK   | Autoincremental                                 |
+| `user_id`     | INT FK   | Referencia a `auth_user.id`                     |
+| `property_id` | INT FK   | Referencia a `property.id`                      |
+| `created_at`  | DATETIME | Timestamp del like. Default `CURRENT_TIMESTAMP` |
+
+Con constraint `UNIQUE (user_id, property_id)` y un índice adicional en
+`property_id`. Ambas FKs con `ON DELETE CASCADE`.
+
+### Decisiones de diseño y justificación
+
+**1. Reutilizar `auth_user` en vez de crear una tabla de usuarios nueva.**
+La base de datos ya tiene el sistema de autenticación de Django (`auth_user`,
+`auth_group`, `auth_permission`, etc.). Reutilizarlo evita duplicación,
+aprovecha el manejo seguro de passwords de Django (hashing, salt) y mantiene
+consistencia con el resto del sistema. Crear una tabla paralela `user` sería
+un anti-patrón.
+
+**2. Modelo simple (una tabla) en vez de evento + estado.**
+Un "Me gusta" es un estado boolean por par usuario-inmueble: existe o no
+existe. No se modela como una secuencia de eventos (like, unlike, like de
+nuevo) porque el alcance del servicio solo requiere consultar el estado
+actual y el histórico del usuario. Si Habi quisiera auditoría completa
+("¿cuándo quitó este usuario su like?"), se podría añadir una tabla
+`property_like_event` como extensión, sin romper el modelo actual.
+
+**3. Constraint `UNIQUE (user_id, property_id)`.**
+Un usuario no puede dar like dos veces al mismo inmueble. Este constraint:
+- **Garantiza integridad** a nivel de base de datos (no depende solo de la
+  lógica de aplicación).
+- **Acelera el lookup más frecuente de la UI**: "¿este usuario ya dio like
+  a este inmueble?" — que se resuelve con un seek sobre el índice único.
+- **Permite usar `INSERT IGNORE`** en la aplicación para que dar like sea
+  idempotente (si el usuario hace doble-tap, no falla).
+
+**4. Índice explícito en `property_id`.**
+El caso de uso "ranking de popularidad" agrupa por `property_id` y cuenta.
+Sin índice, sería un full table scan. Con índice, el motor puede hacer un
+index scan ordenado y agregar eficientemente.
+
+No se añade índice solo en `user_id` porque el UNIQUE compuesto
+`(user_id, property_id)` ya lo cubre: el motor puede usarlo para filtrar
+por `user_id` aprovechando el orden del índice.
+
+**5. `ON DELETE CASCADE` en ambas FKs.**
+Si se elimina un usuario o un inmueble, sus likes asociados se eliminan
+automáticamente. Likes "huérfanos" (sin usuario o sin inmueble válido)
+son datos inútiles: no se pueden mostrar en la UI ni contar para ranking.
+Mejor eliminarlos en cascada que dejarlos como basura en la tabla.
+
+**6. Timestamp `created_at`.**
+Permite ordenar el histórico de un usuario del like más reciente al más
+antiguo, que es el orden esperado por UX. También habilita análisis
+temporal futuro (likes por día, likes por mes) sin cambios de esquema.
+
+**7. Sin contador desnormalizado en `property`.**
+Podría añadirse una columna `property.likes_count` actualizada por trigger,
+para evitar el `COUNT(*)` en cada consulta de ranking. Se decide **no
+hacerlo en el Servicio 2** porque:
+- Añade complejidad (trigger a mantener, riesgo de desincronización).
+- Con volumen moderado y el índice en `property_id`, el `COUNT(*)` es
+  rápido.
+- Esta optimización se propone por separado en el **Extra 3** como
+  parte de un rediseño orientado a velocidad de consultas.
+
+### Autenticación (fuera del alcance de la DB)
+
+El enunciado indica que "solo usuarios registrados" pueden dar like. La
+identificación del usuario ocurre a nivel de aplicación, no de base de
+datos. Propuesta:
+
+- **JWT Bearer token** en el header `Authorization`.
+- La aplicación valida el token, extrae el `user_id` y lo usa para
+  insertar en `property_like`.
+- Requests sin token o con token inválido reciben `401 Unauthorized`.
+
+Alternativas válidas: sesión con cookie (más tradicional, útil si hay una
+app web acoplada al mismo dominio), API key (para clientes no interactivos).
+La elección final depende del contexto que Habi defina para consumo del API.
 
 ---
 
@@ -230,9 +311,112 @@ Ver [`frontend/`](./frontend/).
 
 ### Extra 3 — Modelo de datos mejorado
 
-Propuesta de modelo alternativo que mejora el rendimiento de la consulta del
-Servicio 1. Ver diagrama en [`docs/er_extra3.png`](./docs/er_extra3.png) y
-justificación en la sección correspondiente más abajo.
+Propuesta de rediseño orientado a **velocidad de consultas**. Mantiene el
+modelo actual como fuente de verdad y añade desnormalización estratégica
+sincronizada vía triggers.
+
+- **DDL completo:** [`database/migrations/extra3_model.sql`](./database/migrations/extra3_model.sql)
+- **Diagrama ER:** [`docs/er_extra3.md`](./docs/er_extra3.md)
+
+#### Problemas del modelo actual
+
+1. **Subquery correlacionado en el Servicio 1.** La query del enunciado
+   obliga a buscar, por cada inmueble, su último registro en `status_history`.
+   Con volumen (millones de inmuebles × decenas de cambios de estado) se
+   vuelve caro. Ninguna cantidad de índices en `status_history` elimina
+   completamente este costo.
+
+2. **Ranking de likes con `COUNT(*) + GROUP BY`.** Para obtener los inmuebles
+   más gustados hay que contar todos los likes agrupados por inmueble. Es
+   `O(n)` sobre `property_like`.
+
+3. **Filtros combinados del Servicio 1 sin índice compuesto.** Cuando se
+   filtran `city + year + status` simultáneamente, el motor debe elegir un
+   índice y filtrar el resto en memoria.
+
+#### Cambios propuestos
+
+**A. Columnas denormalizadas en `property`:**
+
+- `current_status_id INT NULL` — FK al status actual. Elimina el subquery
+  del Servicio 1. Sincronizado por triggers.
+- `likes_count INT NOT NULL DEFAULT 0` — contador cacheado. Ranking se
+  resuelve con `ORDER BY likes_count DESC LIMIT N`, un reverse index scan.
+
+**B. Triggers para mantener la sincronización:**
+
+- `AFTER INSERT ON status_history` → actualiza `property.current_status_id`.
+- `AFTER DELETE ON status_history` → recalcula `current_status_id` a partir
+  del nuevo "último" (caso borde, pero necesario para consistencia).
+- `AFTER INSERT ON property_like` → incrementa `likes_count`.
+- `AFTER DELETE ON property_like` → decrementa `likes_count` con clamp a 0.
+
+**C. Índices compuestos orientados a patrones reales:**
+
+- `idx_property_search (current_status_id, city, year)` — cubre la consulta
+  combinada del Servicio 1 en un solo index seek.
+- `idx_property_ranking (likes_count)` — ranking en O(log n).
+- `idx_property_year (year)` — filtro aislado por año.
+
+**D. Scripts de carga inicial y reconciliación.**
+
+El DDL incluye queries de backfill (para poblar las columnas nuevas tras la
+migración) y de reconciliación (para correr periódicamente como job de
+mantenimiento y detectar desviaciones si un trigger fallara).
+
+#### Impacto esperado en el Servicio 1
+
+La query tras el rediseño:
+
+```sql
+SELECT p.address, p.city, s.name, p.price, p.description
+FROM property p
+INNER JOIN status s ON s.id = p.current_status_id
+WHERE s.name IN ('pre_venta', 'en_venta', 'vendido')
+  AND p.city = ? AND p.year = ?
+ORDER BY p.id ASC
+LIMIT ? OFFSET ?;
+```
+
+Comparada con la versión actual:
+
+- Desaparece el subquery correlacionado.
+- El WHERE completo se cubre con `idx_property_search`.
+- El JOIN con `status` es por PK, ultra rápido.
+
+#### Trade-offs (sinceros)
+
+**Consistencia eventual.** Si un trigger falla o alguien lo desactiva
+manualmente, las columnas cacheadas se desincronizan. Mitigación: el script
+de reconciliación se corre como job periódico. Además, `current_status_id`
+tiene una FK al catálogo `status`, así que la DB protege contra valores
+inválidos.
+
+**Escrituras más lentas.** Cada insert en `status_history` o `property_like`
+dispara un update adicional. Es aceptable porque:
+- El tráfico de lectura supera al de escritura por órdenes de magnitud en
+  este dominio.
+- Los updates tocan una sola fila por id (muy barato).
+
+**Espacio adicional.** Dos columnas más por inmueble. Despreciable.
+
+**Complejidad operativa.** Triggers que mantener. Mitigación: DDL bien
+comentado y scripts de reconciliación documentados.
+
+#### Por qué no un enfoque más radical
+
+Se consideró crear una tabla separada `property_search` con todos los
+campos denormalizados ("vista materializada manual"). Se descartó porque:
+
+- Duplicaría datos del inmueble (address, city, price, description...).
+- Requeriría sincronizar más columnas en más eventos.
+- Aporta poco valor adicional sobre la propuesta actual, que ya cubre los
+  dos costos principales (subquery de estado y count de likes).
+
+Si el tráfico de lectura justificara una base de datos analítica separada,
+la decisión correcta sería una réplica con un modelo distinto (p.ej. una
+estrella en un warehouse), no una tabla paralela en la misma DB
+transaccional.
 
 ---
 
