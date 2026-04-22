@@ -276,6 +276,51 @@ sigue siendo relevante para el usuario. Excluirlo ocultaría inmuebles válidos.
 endpoint es inviable en producción. No la pidieron explícitamente, pero omitirla
 sería un olvido grave.
 
+### D6 — Tabla `status` como catálogo separado.
+
+El esquema real tiene tres tablas relevantes: `property`, `status_history` y
+`status`. La tabla `status` es un catálogo con columnas `(id, name, label)`.
+Los datos muestran estados internos del flujo de Habi que no son visibles al
+usuario externo: `comprando`, `comprado`, etc.
+
+**Resolución:** Hardcodear los nombres visibles (`pre_venta`, `en_venta`,
+`vendido`) como literales en la query, en vez de resolverlos dinámicamente
+desde la tabla `status` en runtime.
+
+**Justificación:**
+- Los estados visibles son una regla de negocio definida en el enunciado, no
+  un dato mutable. Si cambiaran, el enunciado también cambiaría y habría que
+  revisar la lógica completa.
+- Resolver IDs en runtime añade una query extra (o lógica de caché con
+  invalidación), sin beneficio real.
+- El JOIN con `status` se mantiene para devolver el `name` en la respuesta
+  del endpoint, lo cual es más informativo que devolver un `status_id`.
+
+### D7 — Unicidad del "último estado" ante datos inconsistentes.
+
+El flujo normal de un inmueble implica múltiples registros en `status_history`.
+El "último" se obtiene ordenando por `update_date DESC` y desempatando por
+`id DESC`. Si un inmueble no tiene historial (caso posible por inconsistencia),
+no aparece en los resultados — el `INNER JOIN` con la subquery lo excluye
+naturalmente, lo cual es consistente con la regla de negocio D1.
+
+### D8 — Inconsistencias reales detectadas en la base de datos
+
+Durante las pruebas contra la base de datos real se detectó al menos un
+registro en estado visible (`pre_venta`) con `address` y `city` vacíos:
+{'address': '', 'city': '', 'status': 'pre_venta', 'price': 0, 'description': None}
+
+**Resolución del servicio:** la fila se excluye de los resultados porque sin
+dirección ni ciudad el inmueble no es útil para el usuario (ver D4 y lógica
+de `_map_rows` en el repositorio). Se deja un `WARNING` en los logs para
+trazabilidad.
+
+**Justificación:** Excluir es preferible a devolver la fila con campos vacíos
+porque el consumidor del API (p.ej. el frontend) mostraría una tarjeta vacía
+sin valor informativo. El precio `0` no se considera inconsistente por sí
+solo (podría ser "precio a consultar"), pero combinado con dirección y
+ciudad vacías confirma que el registro está incompleto.
+
 ---
 
 ## Licencia
