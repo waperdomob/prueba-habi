@@ -299,15 +299,49 @@ manual.
 ## Extras
 
 ### Extra 2 — Frontend
-
-Interfaz mínima en HTML/CSS/JS vanilla que consume el Servicio 1. Incluye:
-
-- Formulario de filtros (año, ciudad, estado)
-- Tabla de resultados con los campos requeridos
-- Indicador de carga
-- Mensaje de estado vacío
-
-Ver [`frontend/`](./frontend/).
+ 
+Interfaz web mínima que consume el Servicio 1. Construida con **HTML, CSS y
+JavaScript vanilla** — sin frameworks, sin build step, sin dependencias de
+npm. Un solo archivo (`frontend/index.html`) que se abre directamente en
+el navegador.
+ 
+**Ubicación:** [`frontend/index.html`](./frontend/index.html)
+ 
+#### Cómo ejecutar
+ 
+1. Asegúrate de que el Servicio 1 esté corriendo (`python -m services.property_service.server`).
+2. Abre `frontend/index.html` en el navegador (doble clic o `start frontend/index.html` en Windows).
+3. Usa los filtros y presiona "Buscar".
+El frontend hace requests a `http://localhost:8000/properties`. CORS está
+habilitado en el servidor para permitir el origen `file://` o cualquier
+puerto local.
+ 
+#### Requisitos cubiertos
+ 
+- **Listado de inmuebles** con los 5 campos visibles definidos en el
+  Servicio 1 (dirección, ciudad, estado, precio, descripción).
+- **Controles de filtrado** por año de construcción, ciudad y estado.
+- **Feedback visual de carga** — spinner animado con mensaje "Buscando
+  inmuebles...".
+- **Estado vacío** — mensaje claro cuando no hay resultados.
+Adicionalmente se incluye: estado de error si el backend no responde,
+formato de precio localizado en COP, escape de HTML para prevenir XSS,
+y diseño responsive.
+ 
+#### Decisiones de diseño
+ 
+- **Un solo archivo.** CSS y JS embebidos. Más fácil de revisar y abrir,
+  sin configuración previa.
+- **Sin frameworks.** Consistente con el espíritu "sin frameworks" del
+  backend. Demuestra dominio de APIs nativas (`fetch`, `FormData`,
+  `URLSearchParams`, `Intl.NumberFormat`).
+- **Tarjetas en vez de tabla.** Para datos inmobiliarios, las tarjetas
+  permiten mostrar la descripción y crear una jerarquía visual más rica
+  que una tabla plana.
+- **Tipografía editorial** (Fraunces + Inter Tight). Evita la estética
+  genérica "otro dashboard más" y alinea con la sensibilidad visual de
+  una marca inmobiliaria premium.
+---
 
 ### Extra 3 — Modelo de datos mejorado
 

@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Habi — Inmuebles disponibles</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Inter+Tight:wght@400;500;600&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg: #faf8f3;
+            --surface: #ffffff;
+            --ink: #1a1a1a;
+            --ink-soft: #555555;
+            --ink-muted: #8a8a8a;
+            --line: #e8e4da;
+            --accent: #c6432e;
+            --accent-soft: #fbe8e3;
+            --shadow: 0 1px 0 rgba(0, 0, 0, 0.02), 0 8px 24px -12px rgba(0, 0, 0, 0.08);
+            --radius: 4px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            font-size: 16px;
+        }
+
+        body {
+            font-family: 'Inter Tight', -apple-system, sans-serif;
+            background: var(--bg);
+            color: var(--ink);
+            line-height: 1.5;
+            min-height: 100vh;
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 4rem 2rem 6rem;
+        }
+
+        header {
+            border-bottom: 1px solid var(--line);
+            padding-bottom: 2.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .brand {
+            font-family: 'Fraunces', serif;
+            font-weight: 400;
+            font-size: 0.875rem;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--ink-muted);
+            margin-bottom: 1rem;
+        }
+
+        h1 {
+            font-family: 'Fraunces', serif;
+            font-weight: 400;
+            font-size: clamp(2rem, 5vw, 3.25rem);
+            line-height: 1.05;
+            letter-spacing: -0.02em;
+            max-width: 640px;
+        }
+
+        h1 em {
+            font-style: italic;
+            color: var(--accent);
+        }
+
+        .lede {
+            margin-top: 1.25rem;
+            color: var(--ink-soft);
+            font-size: 1rem;
+            max-width: 540px;
+        }
+
+        form {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            padding: 1.75rem;
+            margin-bottom: 2.5rem;
+            box-shadow: var(--shadow);
+        }
+
+        .filters {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 1.25rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .field {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+
+        label {
+            font-size: 0.75rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: var(--ink-muted);
+            font-weight: 500;
+        }
+
+        input, select {
+            font-family: inherit;
+            font-size: 0.95rem;
+            padding: 0.7rem 0.85rem;
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            background: var(--bg);
+            color: var(--ink);
+            transition: border-color 0.15s;
+        }
+
+        input:focus, select:focus {
+            outline: none;
+            border-color: var(--ink);
+        }
+
+        .actions {
+            display: flex;
+            gap: 0.75rem;
+            align-items: center;
+            padding-top: 1.25rem;
+            border-top: 1px solid var(--line);
+        }
+
+        button {
+            font-family: inherit;
+            font-size: 0.9rem;
+            font-weight: 500;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: var(--radius);
+            cursor: pointer;
+            transition: all 0.15s;
+            letter-spacing: 0.02em;
+        }
+
+        button.primary {
+            background: var(--ink);
+            color: var(--bg);
+        }
+
+        button.primary:hover {
+            background: var(--accent);
+        }
+
+        button.ghost {
+            background: transparent;
+            color: var(--ink-soft);
+        }
+
+        button.ghost:hover {
+            color: var(--ink);
+        }
+
+        button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .meta {
+            margin-left: auto;
+            font-size: 0.85rem;
+            color: var(--ink-muted);
+            font-variant-numeric: tabular-nums;
+        }
+
+        .results {
+            background: var(--surface);
+            border: 1px solid var(--line);
+            border-radius: var(--radius);
+            overflow: hidden;
+        }
+
+        .state {
+            padding: 4rem 2rem;
+            text-align: center;
+            color: var(--ink-muted);
+        }
+
+        .state.error {
+            color: var(--accent);
+            background: var(--accent-soft);
+        }
+
+        .state-title {
+            font-family: 'Fraunces', serif;
+            font-size: 1.25rem;
+            color: var(--ink);
+            margin-bottom: 0.5rem;
+        }
+
+        .state.error .state-title {
+            color: var(--accent);
+        }
+
+        .spinner {
+            display: inline-block;
+            width: 1.25rem;
+            height: 1.25rem;
+            border: 2px solid var(--line);
+            border-top-color: var(--ink);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+            margin-bottom: 1rem;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1px;
+            background: var(--line);
+        }
+
+        .card {
+            background: var(--surface);
+            padding: 1.75rem;
+            display: flex;
+            flex-direction: column;
+            gap: 0.75rem;
+            transition: background 0.15s;
+        }
+
+        .card:hover {
+            background: var(--bg);
+        }
+
+        .card-top {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            gap: 1rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .badge {
+            font-size: 0.7rem;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            padding: 0.25rem 0.6rem;
+            border-radius: 2px;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .badge.pre_venta {
+            background: #fef4e0;
+            color: #8a5a00;
+        }
+
+        .badge.en_venta {
+            background: #e4f0e3;
+            color: #2d5c2a;
+        }
+
+        .badge.vendido {
+            background: #ebe8e3;
+            color: #555555;
+        }
+
+        .address {
+            font-family: 'Fraunces', serif;
+            font-size: 1.15rem;
+            line-height: 1.3;
+            color: var(--ink);
+        }
+
+        .city {
+            font-size: 0.85rem;
+            color: var(--ink-muted);
+            letter-spacing: 0.04em;
+            text-transform: uppercase;
+        }
+
+        .price {
+            font-family: 'Fraunces', serif;
+            font-size: 1.5rem;
+            font-weight: 500;
+            color: var(--ink);
+            margin-top: 0.25rem;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .price-unavailable {
+            color: var(--ink-muted);
+            font-style: italic;
+            font-size: 1rem;
+            font-weight: 400;
+        }
+
+        .description {
+            font-size: 0.9rem;
+            color: var(--ink-soft);
+            line-height: 1.55;
+            margin-top: 0.5rem;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+
+        footer {
+            margin-top: 4rem;
+            padding-top: 2rem;
+            border-top: 1px solid var(--line);
+            color: var(--ink-muted);
+            font-size: 0.8rem;
+        }
+
+        @media (max-width: 640px) {
+            .wrap { padding: 2rem 1.25rem 3rem; }
+            .actions { flex-wrap: wrap; }
+            .meta { margin-left: 0; width: 100%; }
+        }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <header>
+            <div class="brand">Habi</div>
+            <h1>Inmuebles <em>disponibles</em></h1>
+            <p class="lede">Consulta propiedades en pre-venta, en venta o vendidas. Filtra por año, ciudad y estado.</p>
+        </header>
+
+        <form id="filters-form" autocomplete="off">
+            <div class="filters">
+                <div class="field">
+                    <label for="city">Ciudad</label>
+                    <input type="text" id="city" name="city" placeholder="p. ej. Bogotá">
+                </div>
+                <div class="field">
+                    <label for="year">Año de construcción</label>
+                    <input type="number" id="year" name="year" min="1800" max="2100" placeholder="p. ej. 2018">
+                </div>
+                <div class="field">
+                    <label for="status">Estado</label>
+                    <select id="status" name="status">
+                        <option value="">Todos</option>
+                        <option value="pre_venta">Pre-venta</option>
+                        <option value="en_venta">En venta</option>
+                        <option value="vendido">Vendido</option>
+                    </select>
+                </div>
+            </div>
+            <div class="actions">
+                <button type="submit" class="primary" id="submit-btn">Buscar</button>
+                <button type="button" class="ghost" id="clear-btn">Limpiar</button>
+                <span class="meta" id="meta"></span>
+            </div>
+        </form>
+
+        <div class="results" id="results" aria-live="polite">
+            <div class="state">
+                <div class="state-title">Listo para buscar</div>
+                <div>Usa los filtros o presiona "Buscar" para ver todos los inmuebles.</div>
+            </div>
+        </div>
+
+        <footer>
+            Prueba técnica Habi — Backend Developer. Interfaz construida con HTML, CSS y JavaScript vanilla.
+        </footer>
+    </div>
+
+    <script>
+        // -------------------------------------------------------------
+        // Configuración
+        // -------------------------------------------------------------
+        const API_BASE = 'http://localhost:8000';
+        const ENDPOINT = `${API_BASE}/properties`;
+
+        const form = document.getElementById('filters-form');
+        const clearBtn = document.getElementById('clear-btn');
+        const submitBtn = document.getElementById('submit-btn');
+        const results = document.getElementById('results');
+        const meta = document.getElementById('meta');
+
+        const statusLabels = {
+            pre_venta: 'Pre-venta',
+            en_venta: 'En venta',
+            vendido: 'Vendido',
+        };
+
+        // -------------------------------------------------------------
+        // Helpers
+        // -------------------------------------------------------------
+        function buildQueryString(formData) {
+            const params = new URLSearchParams();
+            const year = formData.get('year')?.trim();
+            const city = formData.get('city')?.trim();
+            const status = formData.get('status');
+
+            if (year) params.set('year', year);
+            if (city) params.set('city', city);
+            if (status) params.set('status', status);
+
+            return params.toString();
+        }
+
+        function formatPrice(price) {
+            if (price === null || price === undefined) {
+                return '<span class="price-unavailable">Precio no disponible</span>';
+            }
+            // Formato local de Colombia (referencia del enunciado: "moneda local").
+            return new Intl.NumberFormat('es-CO', {
+                style: 'currency',
+                currency: 'COP',
+                maximumFractionDigits: 0,
+            }).format(price);
+        }
+
+        function escapeHtml(str) {
+            if (str === null || str === undefined) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#039;');
+        }
+
+        // -------------------------------------------------------------
+        // Renderizado de estados
+        // -------------------------------------------------------------
+        function renderLoading() {
+            results.innerHTML = `
+                <div class="state">
+                    <div class="spinner"></div>
+                    <div class="state-title">Buscando inmuebles…</div>
+                </div>
+            `;
+            meta.textContent = '';
+        }
+
+        function renderEmpty() {
+            results.innerHTML = `
+                <div class="state">
+                    <div class="state-title">Sin resultados</div>
+                    <div>No se encontraron inmuebles con los filtros aplicados. Prueba con otros criterios.</div>
+                </div>
+            `;
+            meta.textContent = '0 resultados';
+        }
+
+        function renderError(message) {
+            results.innerHTML = `
+                <div class="state error">
+                    <div class="state-title">No se pudo completar la búsqueda</div>
+                    <div>${escapeHtml(message)}</div>
+                </div>
+            `;
+            meta.textContent = '';
+        }
+
+        function renderResults(data) {
+            const { count, results: properties } = data;
+            if (!properties || properties.length === 0) {
+                renderEmpty();
+                return;
+            }
+
+            const cards = properties.map(p => {
+                const statusKey = p.status || '';
+                const statusLabel = statusLabels[statusKey] || statusKey;
+                return `
+                    <article class="card">
+                        <div class="card-top">
+                            <span class="city">${escapeHtml(p.city)}</span>
+                            <span class="badge ${escapeHtml(statusKey)}">${escapeHtml(statusLabel)}</span>
+                        </div>
+                        <h2 class="address">${escapeHtml(p.address)}</h2>
+                        <div class="price">${formatPrice(p.price)}</div>
+                        ${p.description ? `<p class="description">${escapeHtml(p.description)}</p>` : ''}
+                    </article>
+                `;
+            }).join('');
+
+            results.innerHTML = `<div class="grid">${cards}</div>`;
+            meta.textContent = `${count} ${count === 1 ? 'resultado' : 'resultados'}`;
+        }
+
+        // -------------------------------------------------------------
+        // Fetch
+        // -------------------------------------------------------------
+        async function fetchProperties(queryString) {
+            const url = queryString ? `${ENDPOINT}?${queryString}` : ENDPOINT;
+            const response = await fetch(url, { headers: { 'Accept': 'application/json' } });
+
+            if (!response.ok) {
+                let detail = `Código HTTP ${response.status}`;
+                try {
+                    const body = await response.json();
+                    if (body && body.message) detail = body.message;
+                } catch (_) {
+                    // Respuesta no JSON — conservar el detalle genérico.
+                }
+                throw new Error(detail);
+            }
+
+            return response.json();
+        }
+
+        // -------------------------------------------------------------
+        // Eventos
+        // -------------------------------------------------------------
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(form);
+            const queryString = buildQueryString(formData);
+
+            renderLoading();
+            submitBtn.disabled = true;
+
+            try {
+                const data = await fetchProperties(queryString);
+                renderResults(data);
+            } catch (err) {
+                const msg = err.message || 'Error desconocido. Verifica que el servidor esté corriendo en ' + API_BASE;
+                renderError(msg);
+            } finally {
+                submitBtn.disabled = false;
+            }
+        });
+
+        clearBtn.addEventListener('click', () => {
+            form.reset();
+            results.innerHTML = `
+                <div class="state">
+                    <div class="state-title">Listo para buscar</div>
+                    <div>Usa los filtros o presiona "Buscar" para ver todos los inmuebles.</div>
+                </div>
+            `;
+            meta.textContent = '';
+        });
+    </script>
+</body>
+</html>
